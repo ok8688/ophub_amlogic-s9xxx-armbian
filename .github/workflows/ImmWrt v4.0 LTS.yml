@@ -14,7 +14,7 @@ name: Build ImmWrt v4.0 LTS
 on:
   workflow_dispatch:
   schedule:
-    - cron: '26 3 * * 3,6' # HKT 11:26
+    - cron: '26 20 * * 0,4' # HKT 04:26
 
 concurrency:
   group: immwrt-build
