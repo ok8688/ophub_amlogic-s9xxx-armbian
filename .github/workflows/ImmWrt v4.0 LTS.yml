@@ -1,15 +1,14 @@
 # =====================================================================
-# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - APEX
+# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - CORE UPGRADED
 # =====================================================================
-# 代號名稱：ImmWrt v4.0.5 LTS - Apex CI
-# 封版日期：2026年5月 (SRE 頂峰結案：Ext4 索引優化與網路極限並發)
+# 代號名稱：ImmWrt v4.0.6 LTS - Core Upgraded
+# 封版日期：2026年5月 (突發響應：全面躍遷 GitHub Actions v4 現代化 API 核心)
 # =====================================================================
 
 name: Build ImmWrt v4.0 LTS
 on:
   workflow_dispatch:
   schedule:
-    # 🦉 夜鷹模式：切換至 UTC 18:26 (HKT 02:26)，獨享機房離峰算力
     - cron: '26 18 * * 0,4' # HKT 02:26
 
 concurrency:
@@ -28,8 +27,9 @@ jobs:
     timeout-minutes: 240
     
     steps:
+      # 🚀 升級至最新的 actions/checkout@v4
       - name: Checkout Source
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@v4
         
       - name: Generate Cache Variables
         id: var
@@ -206,8 +206,9 @@ jobs:
           
           ./scripts/diffconfig.sh > diffconfig.txt
 
+      # 🚀 升級至 actions/cache/restore@v4 現代 API
       - name: Restore DL Cache
-        uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        uses: actions/cache/restore@v4
         with:
           path: openwrt/dl
           key: ${{ runner.os }}-dl-v40-25.12-${{ steps.var.outputs.week }}
@@ -216,7 +217,7 @@ jobs:
           enableCrossOsArchive: false
 
       - name: Restore CCache
-        uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        uses: actions/cache/restore@v4
         with:
           path: openwrt/.ccache
           key: ${{ runner.os }}-ccache-v40-25.12-${{ steps.var.outputs.week }}
@@ -243,10 +244,8 @@ jobs:
           ccache --max-size=5G
           ccache --set-config=compression=true
           ccache --set-config=sloppiness=file_macro,time_macros
-          # 🗂️ Inode 索引優化：建立三級目錄，突破 Ext4 檔案系統檢索瓶頸
           ccache --set-config=cache_dir_levels=3
           
-          # 🌪️ 網路極限並發：無懼 RAM 瓶頸，8 執行緒榨乾 Github 頻寬
           retry make download -j8
           
           find dl -type f -size 0 -exec rm -f {} \; || true
@@ -267,8 +266,9 @@ jobs:
           echo "=== 🏆 編譯後 CCache 戰果 ==="
           ccache -s
           
+      # 🚀 升級至 actions/cache/save@v4 現代 API
       - name: Save DL Cache
-        uses: actions/cache/save@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        uses: actions/cache/save@v4
         if: success() && !cancelled()
         with:
           path: openwrt/dl
@@ -276,7 +276,7 @@ jobs:
           enableCrossOsArchive: false
 
       - name: Save CCache
-        uses: actions/cache/save@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
+        uses: actions/cache/save@v4
         if: success() && !cancelled()
         with:
           path: openwrt/.ccache
@@ -295,25 +295,25 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          echo "release_tag=v4.0.5-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
+          echo "release_tag=v4.0.6-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
           cd openwrt
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "os_info=$(uname -srm)" >> $GITHUB_OUTPUT
           echo "gcc_version=$(gcc --version | head -n1)" >> $GITHUB_OUTPUT
           
+      # 🚀 升級至 softprops/action-gh-release@v2 現代 API
       - name: Publish to GitHub Releases
-        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: ImmWrt v4.0.5 LTS (Apex CI) (Build ${{ github.run_number }})
+          name: ImmWrt v4.0.6 LTS (Core Upgraded) (Build ${{ github.run_number }})
           body: |
-            ### 🚀 v4.0.5 生產級頂峰版 (Apex CI)
+            ### 🚀 v4.0.6 生產級核心躍遷版 (Core Upgraded)
+            - **底層 API 大換血**：因應 GitHub 官方停用舊版 Node.js 基礎設施，全面躍遷至 `@v4` 現代化 API (`actions/cache`, `actions/checkout`, `upload-artifact`)。
             - **Ext4 索引優化**：`cache_dir_levels=3`，徹底解決 5GB 巨型快取的 Inode 檢索延遲。
             - **網路極限並發**：`make download -j8`，突破硬碟 I/O 限制，榨乾 Giga 級距頻寬。
             - **夜鷹離峰調度**：定時任務切換至 HKT 02:26，避開排隊擁擠，獨享機房算力。
             - **記憶體防護調度**：鎖定 `make -j3` 甜點位，完美防禦 GitHub Runner RAM 溢出崩潰。
-            - **版本快取隔離**：導入主版本標籤 `-25.12-`，徹底根絕未來升級造成的快取毒化。
-            - **快取覺醒機制**：全面接管 CCache 攔截網，釋放真正的高效編譯積累。
             
             ---
             ### 🛡️ Build Provenance (企業級構建指紋)
@@ -326,9 +326,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # 🚀 升級至 actions/upload-artifact@v4 現代 API
       - name: Upload Build Logs & Configs
         if: always()
-        uses: actions/upload-artifact@50769540e7f4fa5bdcc4138614610131346f0f5b
+        uses: actions/upload-artifact@v4
         with:
           name: openwrt-build-data-${{ github.run_id }}
           path: |
