@@ -1,11 +1,11 @@
 # =====================================================================
-# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - STABLE
+# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - ABSOLUTE ZERO
 # =====================================================================
-# 代號名稱：ImmWrt v4.0.7 LTS - Stable CI
-# 封版日期：2026年5月 (熱修復：移除 ccache 4.x 已棄用的 inode 參數)
+# 代號名稱：ImmWrt v4.1.3 LTS - Absolute Zero
+# 封版日期：2026年5月 (絕對零度隔離：強制關閉系統 GOENV 干擾)
 # =====================================================================
 
-name: Build ImmWrt v4.0 LTS
+name: Build ImmWrt v4.1 LTS
 on:
   workflow_dispatch:
   schedule:
@@ -79,7 +79,7 @@ jobs:
           sudo swapon /swapfile
           sudo apt-get update -qq
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib \
-          gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget jq ccache
+          gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget jq ccache golang-go
           
       - name: Clone Source & PassWall
         run: |
@@ -209,18 +209,30 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: openwrt/dl
-          key: ${{ runner.os }}-dl-v40-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-dl-v41-25.12-${{ steps.var.outputs.week }}
           restore-keys: |
-            ${{ runner.os }}-dl-v40-25.12-
+            ${{ runner.os }}-dl-v41-25.12-
           enableCrossOsArchive: false
 
       - name: Restore CCache
         uses: actions/cache/restore@v4
         with:
           path: openwrt/.ccache
-          key: ${{ runner.os }}-ccache-v40-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-ccache-v41-25.12-${{ steps.var.outputs.week }}
           restore-keys: |
-            ${{ runner.os }}-ccache-v40-25.12-
+            ${{ runner.os }}-ccache-v41-25.12-
+          enableCrossOsArchive: false
+
+      - name: Restore Go Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            openwrt/.gocache
+            openwrt/.gomodcache
+          key: ${{ runner.os }}-go-v41-25.12-${{ hashFiles('openwrt/.config') }}-${{ steps.var.outputs.week }}
+          restore-keys: |
+            ${{ runner.os }}-go-v41-25.12-${{ hashFiles('openwrt/.config') }}-
+            ${{ runner.os }}-go-v41-25.12-
           enableCrossOsArchive: false
 
       - name: Build Firmware
@@ -235,14 +247,25 @@ jobs:
           export FORCE_UNSAFE_CONFIGURE=1
           export CCACHE_DIR="$PWD/.ccache"
           export PATH="/usr/lib/ccache:$PATH"
+          
+          export GOCACHE="$PWD/.gocache"
+          export GOMODCACHE="$PWD/.gomodcache"
+          export GOFLAGS="-modcacherw"
+          # 🛡️ 絕對零度隔離：強制關閉系統 GOENV，避免 GitHub Runner 預設環境綁架編譯器
+          export GOENV=off
+          
           export OMP_NUM_THREADS=1
           export OPENBLAS_NUM_THREADS=1
           
-          mkdir -p "$CCACHE_DIR"
+          mkdir -p "$CCACHE_DIR" "$GOCACHE" "$GOMODCACHE"
+          
+          # 🛡️ 終極物理權限校準
+          find "$GOCACHE" "$GOMODCACHE" -type d -exec chmod u+rwx {} \; || true
+          find "$GOCACHE" "$GOMODCACHE" -type f -exec chmod u+rw {} \; || true
+          
           ccache --max-size=5G
           ccache --set-config=compression=true
           ccache --set-config=sloppiness=file_macro,time_macros
-          # 🚨 已移除報錯的 cache_dir_levels，因為新版 ccache 已經不需要此設定！
           
           retry make download -j8
           
@@ -256,20 +279,24 @@ jobs:
           
           ccache -z
           
-          make -j3 || {
+          # 🎯 將雙引擎參數打穿沙盒
+          make -j3 GOCACHE="$GOCACHE" GOMODCACHE="$GOMODCACHE" || {
             echo "=== 檢測到並發競爭報錯，啟動單核排隊編譯 ==="
-            make -j1 V=s
+            make -j1 V=s GOCACHE="$GOCACHE" GOMODCACHE="$GOMODCACHE"
           }
           
           echo "=== 🏆 編譯後 CCache 戰果 ==="
           ccache -s
+          
+          echo "=== 📦 終極防禦：Go 金庫容量監視器 ==="
+          du -sh "$GOCACHE" "$GOMODCACHE" || true
           
       - name: Save DL Cache
         uses: actions/cache/save@v4
         if: success() && !cancelled()
         with:
           path: openwrt/dl
-          key: ${{ runner.os }}-dl-v40-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-dl-v41-25.12-${{ steps.var.outputs.week }}
           enableCrossOsArchive: false
 
       - name: Save CCache
@@ -277,7 +304,17 @@ jobs:
         if: success() && !cancelled()
         with:
           path: openwrt/.ccache
-          key: ${{ runner.os }}-ccache-v40-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-ccache-v41-25.12-${{ steps.var.outputs.week }}
+          enableCrossOsArchive: false
+
+      - name: Save Go Cache
+        uses: actions/cache/save@v4
+        if: success() && !cancelled()
+        with:
+          path: |
+            openwrt/.gocache
+            openwrt/.gomodcache
+          key: ${{ runner.os }}-go-v41-25.12-${{ hashFiles('openwrt/.config') }}-${{ steps.var.outputs.week }}
           enableCrossOsArchive: false
 
       - name: Validate Firmware Integrity
@@ -292,7 +329,7 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          echo "release_tag=v4.0.7-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
+          echo "release_tag=v4.1.3-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
           cd openwrt
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "os_info=$(uname -srm)" >> $GITHUB_OUTPUT
@@ -302,14 +339,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: ImmWrt v4.0.7 LTS (Stable CI) (Build ${{ github.run_number }})
+          name: ImmWrt v4.1.3 LTS (Absolute Zero CI) (Build ${{ github.run_number }})
           body: |
-            ### 🚀 v4.0.7 生產級穩定版 (Stable CI)
-            - **相容性修復**：移除新版 ccache 4.x 已棄用的 `cache_dir_levels` 參數，解除編譯器閃退問題。
-            - **現代化 API**：全線搭載 GitHub Actions `@v4` 最新套件，徹底免疫舊版棄用風險。
-            - **網路極限並發**：`make download -j8`，突破硬碟 I/O 限制，榨乾 Giga 級距頻寬。
-            - **夜鷹離峰調度**：定時任務切換至 HKT 02:26，避開排隊擁擠，獨享機房算力。
-            - **記憶體防護調度**：鎖定 `make -j3` 甜點位，完美防禦 GitHub Runner RAM 溢出崩潰。
+            ### 🚀 v4.1.3 生產級絕對零度版 (Absolute Zero CI)
+            - **絕對零度隔離**：導入 `GOENV=off`，切斷一切來自 GitHub Runner 底層的環境變數綁架，實現 100% 絕對沙盒純淨度。
+            - **終極物理權限校準**：升級 `find` 權限校準腳本，精準分離目錄與檔案的 executable bit，徹底防禦任何唯讀或越權報錯。
+            - **系統級依賴防禦**：補全 `golang-go` 套件，徹底消除 OpenWrt `host-build` 階段找不到系統編譯器的潛在暴斃風險。
+            - **容量監視儀表板**：實裝 `du -sh` 指令，全時監控 `.gocache` 與 `.gomodcache` 容量，預防 10GB 總量爆炸。
+            - **哈希指紋隔離鎖**：為 Go 金庫掛載 `${{ hashFiles('openwrt/.config') }}` 動態標籤，確保套件增減時自動隔離，杜絕舊版污染。
           files: |
             openwrt/bin/targets/x86/64/*combined*.img.gz
             openwrt/bin/targets/x86/64/sha256sums
