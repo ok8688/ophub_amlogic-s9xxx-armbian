@@ -1,15 +1,15 @@
 # =====================================================================
-# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - CORE UPGRADED
+# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - STABLE
 # =====================================================================
-# 代號名稱：ImmWrt v4.0.6 LTS - Core Upgraded
-# 封版日期：2026年5月 (突發響應：全面躍遷 GitHub Actions v4 現代化 API 核心)
+# 代號名稱：ImmWrt v4.0.7 LTS - Stable CI
+# 封版日期：2026年5月 (熱修復：移除 ccache 4.x 已棄用的 inode 參數)
 # =====================================================================
 
 name: Build ImmWrt v4.0 LTS
 on:
   workflow_dispatch:
   schedule:
-    - cron: '26 18 * * 0,4' # HKT 02:26
+    - cron: '26 18 * * 2,6' # HKT 02:26
 
 concurrency:
   group: immwrt-build
@@ -27,7 +27,6 @@ jobs:
     timeout-minutes: 240
     
     steps:
-      # 🚀 升級至最新的 actions/checkout@v4
       - name: Checkout Source
         uses: actions/checkout@v4
         
@@ -206,7 +205,6 @@ jobs:
           
           ./scripts/diffconfig.sh > diffconfig.txt
 
-      # 🚀 升級至 actions/cache/restore@v4 現代 API
       - name: Restore DL Cache
         uses: actions/cache/restore@v4
         with:
@@ -244,7 +242,7 @@ jobs:
           ccache --max-size=5G
           ccache --set-config=compression=true
           ccache --set-config=sloppiness=file_macro,time_macros
-          ccache --set-config=cache_dir_levels=3
+          # 🚨 已移除報錯的 cache_dir_levels，因為新版 ccache 已經不需要此設定！
           
           retry make download -j8
           
@@ -266,7 +264,6 @@ jobs:
           echo "=== 🏆 編譯後 CCache 戰果 ==="
           ccache -s
           
-      # 🚀 升級至 actions/cache/save@v4 現代 API
       - name: Save DL Cache
         uses: actions/cache/save@v4
         if: success() && !cancelled()
@@ -295,38 +292,30 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          echo "release_tag=v4.0.6-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
+          echo "release_tag=v4.0.7-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
           cd openwrt
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "os_info=$(uname -srm)" >> $GITHUB_OUTPUT
           echo "gcc_version=$(gcc --version | head -n1)" >> $GITHUB_OUTPUT
           
-      # 🚀 升級至 softprops/action-gh-release@v2 現代 API
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: ImmWrt v4.0.6 LTS (Core Upgraded) (Build ${{ github.run_number }})
+          name: ImmWrt v4.0.7 LTS (Stable CI) (Build ${{ github.run_number }})
           body: |
-            ### 🚀 v4.0.6 生產級核心躍遷版 (Core Upgraded)
-            - **底層 API 大換血**：因應 GitHub 官方停用舊版 Node.js 基礎設施，全面躍遷至 `@v4` 現代化 API (`actions/cache`, `actions/checkout`, `upload-artifact`)。
-            - **Ext4 索引優化**：`cache_dir_levels=3`，徹底解決 5GB 巨型快取的 Inode 檢索延遲。
+            ### 🚀 v4.0.7 生產級穩定版 (Stable CI)
+            - **相容性修復**：移除新版 ccache 4.x 已棄用的 `cache_dir_levels` 參數，解除編譯器閃退問題。
+            - **現代化 API**：全線搭載 GitHub Actions `@v4` 最新套件，徹底免疫舊版棄用風險。
             - **網路極限並發**：`make download -j8`，突破硬碟 I/O 限制，榨乾 Giga 級距頻寬。
             - **夜鷹離峰調度**：定時任務切換至 HKT 02:26，避開排隊擁擠，獨享機房算力。
             - **記憶體防護調度**：鎖定 `make -j3` 甜點位，完美防禦 GitHub Runner RAM 溢出崩潰。
-            
-            ---
-            ### 🛡️ Build Provenance (企業級構建指紋)
-            - **ImmortalWrt Commit**: `${{ steps.tag.outputs.commit_hash }}`
-            - **Build Environment**: `${{ steps.tag.outputs.os_info }}`
-            - **Host GCC Version**: `${{ steps.tag.outputs.gcc_version }}`
           files: |
             openwrt/bin/targets/x86/64/*combined*.img.gz
             openwrt/bin/targets/x86/64/sha256sums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🚀 升級至 actions/upload-artifact@v4 現代 API
       - name: Upload Build Logs & Configs
         if: always()
         uses: actions/upload-artifact@v4
