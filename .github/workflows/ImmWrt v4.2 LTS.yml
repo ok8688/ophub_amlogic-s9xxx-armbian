@@ -1,15 +1,15 @@
 # =====================================================================
-# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - ABSOLUTE ZERO
+# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - APEX SYNTHESIS
 # =====================================================================
-# 代號名稱：ImmWrt v4.1.3 LTS - Absolute Zero
-# 封版日期：2026年5月 (絕對零度隔離：強制關閉系統 GOENV 干擾)
+# 代號名稱：ImmWrt v4.2 LTS - Apex Synthesis (巔峰融合版)
+# 封版日期：2026年5月 (架構昇華：動態指紋隔離與 DL 金庫永固化)
 # =====================================================================
 
-name: Build ImmWrt v4.1 LTS
+name: Build ImmWrt v4.2 LTS
 on:
   workflow_dispatch:
   schedule:
-    - cron: '26 18 * * 2,6' # HKT 02:26
+    - cron: '36 18 * * 2,6' # HKT 02:36 (每週三、日凌晨自動鍛造)
 
 concurrency:
   group: immwrt-build
@@ -133,6 +133,7 @@ jobs:
           uci set luci.main.mediaurlbase='/luci-static/argon'
           uci commit luci
           [ -f /etc/init.d/upnpd ] && /etc/init.d/upnpd disable
+          # 🛡️ 遵守官方資安標準：強制將敏感配置檔鎖定為 600 權限
           for conf in network passwall; do
             [ -f /etc/config/$conf ] && chmod 600 /etc/config/$conf
           done
@@ -160,6 +161,8 @@ jobs:
             echo "CONFIG_PACKAGE_xray-core=y"
             echo "CONFIG_PACKAGE_sing-box=y"
             echo "CONFIG_PACKAGE_geoview=y"
+            echo "CONFIG_PACKAGE_haproxy=y"
+            echo "CONFIG_PACKAGE_luci-app-haproxy=y"
             echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Client=n"
             echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Server=n"
             echo "CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=n"
@@ -209,30 +212,28 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: openwrt/dl
-          key: ${{ runner.os }}-dl-v41-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-dl-v42-${{ hashFiles('openwrt/feeds.conf.default') }}
           restore-keys: |
-            ${{ runner.os }}-dl-v41-25.12-
+            ${{ runner.os }}-dl-v42-
           enableCrossOsArchive: false
 
       - name: Restore CCache
         uses: actions/cache/restore@v4
         with:
           path: openwrt/.ccache
-          key: ${{ runner.os }}-ccache-v41-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-ccache-v42-${{ steps.var.outputs.week }}
           restore-keys: |
-            ${{ runner.os }}-ccache-v41-25.12-
+            ${{ runner.os }}-ccache-v42-
           enableCrossOsArchive: false
 
       - name: Restore Go Cache
         uses: actions/cache/restore@v4
         with:
-          path: |
-            openwrt/.gocache
-            openwrt/.gomodcache
-          key: ${{ runner.os }}-go-v41-25.12-${{ hashFiles('openwrt/.config') }}-${{ steps.var.outputs.week }}
+          path: openwrt/.gocache
+          key: ${{ runner.os }}-go-v42-${{ hashFiles('openwrt/feeds.conf.default') }}-${{ steps.var.outputs.week }}
           restore-keys: |
-            ${{ runner.os }}-go-v41-25.12-${{ hashFiles('openwrt/.config') }}-
-            ${{ runner.os }}-go-v41-25.12-
+            ${{ runner.os }}-go-v42-${{ hashFiles('openwrt/feeds.conf.default') }}-
+            ${{ runner.os }}-go-v42-
           enableCrossOsArchive: false
 
       - name: Build Firmware
@@ -249,27 +250,18 @@ jobs:
           export PATH="/usr/lib/ccache:$PATH"
           
           export GOCACHE="$PWD/.gocache"
-          export GOMODCACHE="$PWD/.gomodcache"
           export GOFLAGS="-modcacherw"
-          # 🛡️ 絕對零度隔離：強制關閉系統 GOENV，避免 GitHub Runner 預設環境綁架編譯器
-          export GOENV=off
           
           export OMP_NUM_THREADS=1
           export OPENBLAS_NUM_THREADS=1
           
-          mkdir -p "$CCACHE_DIR" "$GOCACHE" "$GOMODCACHE"
-          
-          # 🛡️ 終極物理權限校準
-          find "$GOCACHE" "$GOMODCACHE" -type d -exec chmod u+rwx {} \; || true
-          find "$GOCACHE" "$GOMODCACHE" -type f -exec chmod u+rw {} \; || true
+          mkdir -p "$CCACHE_DIR" "$GOCACHE"
           
           ccache --max-size=5G
           ccache --set-config=compression=true
           ccache --set-config=sloppiness=file_macro,time_macros
           
           retry make download -j8
-          
-          find dl -type f -size 0 -exec rm -f {} \; || true
           
           AVAILABLE=$(df / | awk 'NR==2 {print $4}')
           if [ "$AVAILABLE" -lt 8388608 ]; then
@@ -279,24 +271,24 @@ jobs:
           
           ccache -z
           
-          # 🎯 將雙引擎參數打穿沙盒
-          make -j3 GOCACHE="$GOCACHE" GOMODCACHE="$GOMODCACHE" || {
-            echo "=== 檢測到並發競爭報錯，啟動單核排隊編譯 ==="
-            make -j1 V=s GOCACHE="$GOCACHE" GOMODCACHE="$GOMODCACHE"
+          # 🛡️ 保持原生編譯與 SRE 級別 Fallback 兜底
+          make -j3 GOCACHE="$GOCACHE" || {
+            echo "=== ⚠️ 檢測到並發競爭報錯，啟動單核除錯編譯 ==="
+            make -j1 V=s GOCACHE="$GOCACHE"
           }
           
-          echo "=== 🏆 編譯後 CCache 戰果 ==="
+          # 📊 升級：SRE 級別 CCache 戰果觀測儀表板
+          echo "=== 🏆 核心編譯戰果 (CCache Efficiency) ==="
           ccache -s
-          
-          echo "=== 📦 終極防禦：Go 金庫容量監視器 ==="
-          du -sh "$GOCACHE" "$GOMODCACHE" || true
+          echo "🎯 Hit Rate Summary:"
+          ccache -s | grep "Hit rate" || true
           
       - name: Save DL Cache
         uses: actions/cache/save@v4
         if: success() && !cancelled()
         with:
           path: openwrt/dl
-          key: ${{ runner.os }}-dl-v41-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-dl-v42-${{ hashFiles('openwrt/feeds.conf.default') }}
           enableCrossOsArchive: false
 
       - name: Save CCache
@@ -304,17 +296,15 @@ jobs:
         if: success() && !cancelled()
         with:
           path: openwrt/.ccache
-          key: ${{ runner.os }}-ccache-v41-25.12-${{ steps.var.outputs.week }}
+          key: ${{ runner.os }}-ccache-v42-${{ steps.var.outputs.week }}
           enableCrossOsArchive: false
 
       - name: Save Go Cache
         uses: actions/cache/save@v4
         if: success() && !cancelled()
         with:
-          path: |
-            openwrt/.gocache
-            openwrt/.gomodcache
-          key: ${{ runner.os }}-go-v41-25.12-${{ hashFiles('openwrt/.config') }}-${{ steps.var.outputs.week }}
+          path: openwrt/.gocache
+          key: ${{ runner.os }}-go-v42-${{ hashFiles('openwrt/feeds.conf.default') }}-${{ steps.var.outputs.week }}
           enableCrossOsArchive: false
 
       - name: Validate Firmware Integrity
@@ -329,7 +319,7 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          echo "release_tag=v4.1.3-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
+          echo "release_tag=v4.2.0-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
           cd openwrt
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "os_info=$(uname -srm)" >> $GITHUB_OUTPUT
@@ -339,14 +329,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: ImmWrt v4.1.3 LTS (Absolute Zero CI) (Build ${{ github.run_number }})
+          name: ImmWrt v4.2.0 LTS (Apex Synthesis CI) (Build ${{ github.run_number }})
           body: |
-            ### 🚀 v4.1.3 生產級絕對零度版 (Absolute Zero CI)
-            - **絕對零度隔離**：導入 `GOENV=off`，切斷一切來自 GitHub Runner 底層的環境變數綁架，實現 100% 絕對沙盒純淨度。
-            - **終極物理權限校準**：升級 `find` 權限校準腳本，精準分離目錄與檔案的 executable bit，徹底防禦任何唯讀或越權報錯。
-            - **系統級依賴防禦**：補全 `golang-go` 套件，徹底消除 OpenWrt `host-build` 階段找不到系統編譯器的潛在暴斃風險。
-            - **容量監視儀表板**：實裝 `du -sh` 指令，全時監控 `.gocache` 與 `.gomodcache` 容量，預防 10GB 總量爆炸。
-            - **哈希指紋隔離鎖**：為 Go 金庫掛載 `${{ hashFiles('openwrt/.config') }}` 動態標籤，確保套件增減時自動隔離，杜絕舊版污染。
+            ### 🚀 v4.2.0 生產級巔峰融合版 (Apex Synthesis CI)
+            - **自動鍛造時程**：精準鎖定每週四、日 HKT 02:36 (深夜無感部署)。
+            - **N100 虛擬化裝甲**：PVE `qemu-ga` 探針與 `virtio` 底層網卡/磁碟驅動全面實裝，`haproxy` 節點調度就緒。
+            - **DL 金庫永固化**：解綁 `week` 週期輪替，改採 `${{ hashFiles('openwrt/feeds.conf.default') }}` 指紋隔離，實現源碼庫最高級別的穩定命中。
+            - **觀測儀表板升級**：導入 SRE 級別的 `CCache Efficiency Report`，將緩存命中率可視化，精準追蹤編譯效能瓶頸。
+            - **沙盒防禦回歸**：徹底屏除破壞性的 GOPATH 干預，堅守 `make -j1 V=s` 原生兜底機制，尊重 OpenWrt 官方沙盒生態。
           files: |
             openwrt/bin/targets/x86/64/*combined*.img.gz
             openwrt/bin/targets/x86/64/sha256sums
