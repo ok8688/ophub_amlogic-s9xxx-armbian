@@ -1,20 +1,16 @@
 # =====================================================================
-# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (ImmWrt v4.0 LTS) - HOTFIX
+# 🔒 [SEALED] OFFICIAL SINGULARITY RELEASE (10.0 企業奇異點版) - APEX
 # =====================================================================
-# 代號名稱：ImmWrt v4.0 LTS - Singularity CI (Hotfix)
-# 核心特性：
-#   1. 退守動態標籤：恢復使用 @v4 與 @v2，完美解決 GitHub 官方 SHA 棄用報錯。
-#   2. 模組化 SRE 函數庫：全域注入 retry() 函數。
-#   3. 基因鎖快取：ISO 週數 + Config Hash 雙重隔離防污染 (v40專屬金庫)。
-#   4. 殘影阻斷 & 異常捕獲：!cancelled() 與 trap EXIT。
-#   5. CI 免死金牌：DEBIAN_FRONTEND=noninteractive。
+# 代號名稱：ImmWrt v4.0.5 LTS - Apex CI
+# 封版日期：2026年5月 (SRE 頂峰結案：Ext4 索引優化與網路極限並發)
 # =====================================================================
 
 name: Build ImmWrt v4.0 LTS
 on:
   workflow_dispatch:
   schedule:
-    - cron: '26 20 * * 0,4' # HKT 04:26
+    # 🦉 夜鷹模式：切換至 UTC 18:26 (HKT 02:26)，獨享機房離峰算力
+    - cron: '26 18 * * 0,4' # HKT 02:26
 
 concurrency:
   group: immwrt-build
@@ -32,9 +28,8 @@ jobs:
     timeout-minutes: 240
     
     steps:
-      # 🔄 恢復官方 v4 標籤，解決依賴報錯
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
         
       - name: Generate Cache Variables
         id: var
@@ -211,25 +206,22 @@ jobs:
           
           ./scripts/diffconfig.sh > diffconfig.txt
 
-      # 🔄 恢復官方 v4 標籤
       - name: Restore DL Cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
         with:
           path: openwrt/dl
-          key: ${{ runner.os }}-dl-v40-${{ steps.var.outputs.week }}-${{ hashFiles('openwrt/.config') }}
+          key: ${{ runner.os }}-dl-v40-25.12-${{ steps.var.outputs.week }}
           restore-keys: |
-            ${{ runner.os }}-dl-v40-${{ steps.var.outputs.week }}-
-            ${{ runner.os }}-dl-v40-
+            ${{ runner.os }}-dl-v40-25.12-
           enableCrossOsArchive: false
 
       - name: Restore CCache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
         with:
           path: openwrt/.ccache
-          key: ${{ runner.os }}-ccache-v40-${{ steps.var.outputs.week }}-${{ hashFiles('openwrt/.config') }}
+          key: ${{ runner.os }}-ccache-v40-25.12-${{ steps.var.outputs.week }}
           restore-keys: |
-            ${{ runner.os }}-ccache-v40-${{ steps.var.outputs.week }}-
-            ${{ runner.os }}-ccache-v40-
+            ${{ runner.os }}-ccache-v40-25.12-
           enableCrossOsArchive: false
 
       - name: Build Firmware
@@ -240,18 +232,22 @@ jobs:
           trap 'echo "🚨 捕獲終止信號或執行結束，執行兜底清理協議..."; rm -rf build_dir/target-*/linux-x86_64/tmp || true' EXIT
           
           cd openwrt
-          ulimit -n 4096
+          ulimit -n 8192
           export FORCE_UNSAFE_CONFIGURE=1
           export CCACHE_DIR="$PWD/.ccache"
+          export PATH="/usr/lib/ccache:$PATH"
           export OMP_NUM_THREADS=1
           export OPENBLAS_NUM_THREADS=1
           
           mkdir -p "$CCACHE_DIR"
-          ccache --max-size=2G
+          ccache --max-size=5G
           ccache --set-config=compression=true
           ccache --set-config=sloppiness=file_macro,time_macros
+          # 🗂️ Inode 索引優化：建立三級目錄，突破 Ext4 檔案系統檢索瓶頸
+          ccache --set-config=cache_dir_levels=3
           
-          retry make download -j4
+          # 🌪️ 網路極限並發：無懼 RAM 瓶頸，8 執行緒榨乾 Github 頻寬
+          retry make download -j8
           
           find dl -type f -size 0 -exec rm -f {} \; || true
           
@@ -263,7 +259,7 @@ jobs:
           
           ccache -z
           
-          make -j2 || {
+          make -j3 || {
             echo "=== 檢測到並發競爭報錯，啟動單核排隊編譯 ==="
             make -j1 V=s
           }
@@ -271,21 +267,20 @@ jobs:
           echo "=== 🏆 編譯後 CCache 戰果 ==="
           ccache -s
           
-      # 🔄 恢復官方 v4 標籤
       - name: Save DL Cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
         if: success() && !cancelled()
         with:
           path: openwrt/dl
-          key: ${{ runner.os }}-dl-v40-${{ steps.var.outputs.week }}-${{ hashFiles('openwrt/.config') }}
+          key: ${{ runner.os }}-dl-v40-25.12-${{ steps.var.outputs.week }}
           enableCrossOsArchive: false
 
       - name: Save CCache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9
         if: success() && !cancelled()
         with:
           path: openwrt/.ccache
-          key: ${{ runner.os }}-ccache-v40-${{ steps.var.outputs.week }}-${{ hashFiles('openwrt/.config') }}
+          key: ${{ runner.os }}-ccache-v40-25.12-${{ steps.var.outputs.week }}
           enableCrossOsArchive: false
 
       - name: Validate Firmware Integrity
@@ -300,24 +295,25 @@ jobs:
         id: tag
         run: |
           set -euo pipefail
-          echo "release_tag=v4.0-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
+          echo "release_tag=v4.0.5-b${{ github.run_number }}-$(date +"%m%d")" >> $GITHUB_OUTPUT
           cd openwrt
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "os_info=$(uname -srm)" >> $GITHUB_OUTPUT
           echo "gcc_version=$(gcc --version | head -n1)" >> $GITHUB_OUTPUT
           
-      # 🔄 恢復官方 v2 標籤
       - name: Publish to GitHub Releases
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
-          name: ImmWrt v4.0 LTS (Singularity CI) (Build ${{ github.run_number }})
+          name: ImmWrt v4.0.5 LTS (Apex CI) (Build ${{ github.run_number }})
           body: |
-            ### 🚀 v4.0 生產級奇異點版 (Singularity CI)
-            - **SRE 工具箱矩陣**：全域注入 `retry()` 模組，代碼極致優雅 (DRY)，無視網路抖動。
-            - **基因鎖快取矩陣**：`[ISO 週數] + [Config Hash]` 絕對環境隔離。
-            - **中斷捕獲協議**：`trap EXIT` 與 `!cancelled()` 聯動，守護快取金庫絕對純淨。
-            - **企業級運行環境**：`DEBIAN_FRONTEND=noninteractive` 消滅交互卡死。
+            ### 🚀 v4.0.5 生產級頂峰版 (Apex CI)
+            - **Ext4 索引優化**：`cache_dir_levels=3`，徹底解決 5GB 巨型快取的 Inode 檢索延遲。
+            - **網路極限並發**：`make download -j8`，突破硬碟 I/O 限制，榨乾 Giga 級距頻寬。
+            - **夜鷹離峰調度**：定時任務切換至 HKT 02:26，避開排隊擁擠，獨享機房算力。
+            - **記憶體防護調度**：鎖定 `make -j3` 甜點位，完美防禦 GitHub Runner RAM 溢出崩潰。
+            - **版本快取隔離**：導入主版本標籤 `-25.12-`，徹底根絕未來升級造成的快取毒化。
+            - **快取覺醒機制**：全面接管 CCache 攔截網，釋放真正的高效編譯積累。
             
             ---
             ### 🛡️ Build Provenance (企業級構建指紋)
@@ -330,10 +326,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 🔄 恢復官方 v4 標籤
       - name: Upload Build Logs & Configs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4fa5bdcc4138614610131346f0f5b
         with:
           name: openwrt-build-data-${{ github.run_id }}
           path: |
