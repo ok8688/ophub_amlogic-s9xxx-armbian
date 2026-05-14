@@ -1,8 +1,8 @@
 # =====================================================================
-# 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (GOLDEN MASTER)
+# 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (TRUE MASTER)
 # =====================================================================
 # 狀態：ABSOLUTE SEALED (絕對封存)。
-# 審核：融合企業級雙保險快取 (Concurrency + Primary-Key)，回歸 v3.38f 掛載點定點抹除。
+# 審核：徹底實體抹除舊版 PassWall，移除脆弱的快取判斷，回歸最穩健的 SRE 架構。
 # =====================================================================
 
 name: Build ImmWrt Final LTS
@@ -12,6 +12,7 @@ on:
   schedule:
     - cron: '36 18 * * 2,6' # HKT 02:36 (每週三、日)
 
+# 🚀 企業級並發鎖：保留這個防止排程與手動撞車
 concurrency:
   group: immwrt-build
   cancel-in-progress: false
@@ -81,23 +82,30 @@ jobs:
           cd openwrt
           retry ./scripts/feeds update -a
           
-          # ✅ FIX 1：長官的雙重清潔 (已鎖死)
+          # ✅ FIX 1：終極物理防護 - 徹底切斷舊版供應鏈，挫骨揚灰！
           ./scripts/feeds uninstall luci-app-passwall xray-core sing-box luci-app-upnp luci-app-advanced-reboot || true
+          
+          # 🚨 物理抹除 feeds 內核的原生舊版源碼 (防止 install 借屍還魂)
+          rm -rf feeds/luci/applications/luci-app-passwall
+          rm -rf feeds/packages/net/xray-core
+          rm -rf feeds/packages/net/sing-box
+          
+          # 🚨 物理抹除 symlink 軟連結殘留
           rm -rf package/feeds/luci/luci-app-passwall
           rm -rf package/feeds/packages/xray-core
           rm -rf package/feeds/packages/sing-box
           
-          # 🚀 拉取官方最新 PassWall
+          # 🚀 毫無干擾地拉取官方最新 PassWall
           retry git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/openwrt-passwall-packages
           retry git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/openwrt-passwall
           retry ./scripts/feeds install -a -f
           
-          # 🚀 FIX 2：回歸 v3.38f 黃金定點抹除法 (狙擊手精準定位)
+          # 🚀 FIX 2：回歸 v3.38f 黃金定點抹除法 (掛載點)
           ./scripts/feeds uninstall luci-app-fstab || true
           rm -rf feeds/luci/applications/luci-app-fstab
           rm -rf package/feeds/luci/luci-app-fstab
           
-          # 僅針對 menu.d 下的 JSON 檔案進行安全修改，絕不引發選單崩潰
+          # 僅針對 menu.d 下的 JSON 檔案進行安全修改
           MENU_DIR="feeds/luci/modules/luci-mod-system/root/usr/share/luci/menu.d"
           if [ -d "$MENU_DIR" ]; then
             for f in $MENU_DIR/*.json; do
@@ -180,7 +188,6 @@ jobs:
           echo "build_key=build-v5.1.5-${{ hashFiles('toolchain.info', 'openwrt/.config') }}" >> $GITHUB_OUTPUT
 
       - name: Restore Cache
-        id: cache_restore
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -217,9 +224,10 @@ jobs:
             make -j1 V=s GOCACHE="$GOCACHE" 2>&1 | tee logs/build-debug.log || exit 1
           fi
 
+      # 🚀 返璞歸真：去除所有花裡胡哨的條件判斷，讓官方 Action 自行處理，保證絕對存檔！
       - name: Save Cache
         uses: actions/cache/save@v4
-        if: success() && !cancelled() && github.run_attempt == 1 && steps.cache_restore.outputs.cache-primary-key == ''
+        if: success() && !cancelled()
         with:
           path: |
             openwrt/dl
@@ -239,12 +247,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v5.1.5-LTS-b${{ github.run_number }}-${{ steps.var.outputs.date }}
-          name: ImmWrt v5.1.5-LTS (The Golden Master)
+          name: ImmWrt v5.1.5-LTS (The True Master)
           body: |
-            ### 🔒 v5.1.5-LTS 黃金加固絕對封裝版
-            - **雙保險緩存禦盾**：結合 `concurrency` 並發鎖與 `cache-primary-key` 精準攔截，徹底根絕 GitHub Cache 衝突與報錯警告。
-            - **黃金級掛載點根除**：回歸 v3.38f 經典 `jq` 邏輯，精準安全抹除菜單而不破壞 JSON 結構，並於 `.config` 底層阻斷 `block-mount`。
-            - **雙重清潔邏輯**：確保 PassWall 官方源純淨度，徹底解決供應鏈回灌問題。
+            ### 🔒 v5.1.5-LTS 返璞歸真完全體
+            - **防舊版重生機制**：實體抹除 `feeds` 原生舊版 PassWall 目錄，徹底斬斷供應鏈干擾，確保 100% 編譯最新官方源。
+            - **無損快取機制**：移除脆弱的判斷條件，回歸標準 `actions/cache/save`，配合全局 `concurrency` 鎖，確保快取絕對上傳且不崩潰。
+            - **黃金級掛載點根除**：回歸 v3.38f 經典 `jq` 定點抹除，絕不引發選單崩潰。
             - **硬體效能與安全性**：全量補齊 nft-offload 轉發加速與 ca-certificates 證書庫，完美適配 N100 + PVE。
           files: |
             openwrt/bin/targets/x86/64/*combined*.img.gz
