@@ -2,7 +2,7 @@
 # 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (TRUE MASTER)
 # =====================================================================
 # 狀態：ABSOLUTE SEALED (絕對封存)。
-# 審核：引入核爆級磁碟清理，斬斷 ccache/gocache 負擔，確保 100% 防爆盤。
+# 審核：核爆級空間清理、無損快取機制、防彈級 SRE 駕駛艙雷達全線上線。
 # =====================================================================
 
 name: Build ImmWrt Final LTS
@@ -10,7 +10,7 @@ name: Build ImmWrt Final LTS
 on:
   workflow_dispatch:
   schedule:
-    - cron: '36 18 * * 2,6' # HKT 02:36 (每週三、日)
+    - cron: '36 18 * * 0,4' # HKT 02:36 (每週一、五)
 
 concurrency:
   group: immwrt-build
@@ -212,6 +212,27 @@ jobs:
           
           export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct || date +%s)
           
+          # ==========================================
+          # 📡 啟動 SRE 駕駛艙雷達 (防彈級終極版)
+          # ==========================================
+          MONITOR_PID=""
+          
+          cleanup_monitor() {
+            echo "🧹 關閉駕駛艙雷達..."
+            [ -n "$MONITOR_PID" ] && kill "$MONITOR_PID" 2>/dev/null || true
+          }
+          trap cleanup_monitor EXIT INT TERM
+          
+          (
+            echo "📡 BUILD MONITOR START"
+            while true; do
+              echo "[MONITOR] $(date '+%H:%M:%S') | RAM: $(free -m | awk '/Mem:/ {print $3"/"$2"MB"}') | DISK: $(df -h / | awk 'NR==2 {print $5}')"
+              sleep 120 || true
+            done
+          ) &
+          MONITOR_PID=$!
+          # ==========================================
+          
           for i in 1 2 3; do
             make download -j$(nproc) && break || {
               sleep $((i * 5))
@@ -249,6 +270,7 @@ jobs:
           body: |
             ### 🔒 v5.1.5-LTS 究極穩健大成版
             - **防爆盤矩陣**：引入 Android/Docker 核爆清理，並徹底剔除 `.ccache` 與 `.gocache`，確保編譯空間 100% 充裕，告別 `no space left` 報錯。
+            - **SRE 雷達監控**：裝載 Subshell 背景心跳與硬體探針，即時觀測 RAM/Disk 水位，防禦 GitHub 靜默超時。
             - **極速快取策略**：僅保留高價值的 `dl` 下載源碼快取，配合 `cache-primary-key` 防禦網，實現秒級無衝突保存。
             - **防舊版重生機制**：實體抹除 `feeds` 原生舊版 PassWall 目錄，徹底斬斷供應鏈干擾，確保編譯最新官方源。
             - **全量中文化覆蓋**：補齊基礎模塊中文包，確保系統後台各級菜單 100% 沉浸式中文體驗。
