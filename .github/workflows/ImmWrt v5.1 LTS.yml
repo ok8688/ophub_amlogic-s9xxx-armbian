@@ -2,7 +2,7 @@
 # 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (GOLDEN MASTER)
 # =====================================================================
 # 狀態：ABSOLUTE SEALED (絕對封存)。
-# 審核：已完成交叉檢查，完美融合 v3.38f 黃金 `jq` 抹除邏輯，其餘 100% 鎖死。
+# 審核：融合企業級雙保險快取 (Concurrency + Primary-Key)，回歸 v3.38f 掛載點定點抹除。
 # =====================================================================
 
 name: Build ImmWrt Final LTS
@@ -11,6 +11,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '36 18 * * 2,6' # HKT 02:36 (每週三、日)
+
+concurrency:
+  group: immwrt-build
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -77,7 +81,7 @@ jobs:
           cd openwrt
           retry ./scripts/feeds update -a
           
-          # ✅ FIX 1：長官的雙重清潔邏輯 (已鎖死)
+          # ✅ FIX 1：長官的雙重清潔 (已鎖死)
           ./scripts/feeds uninstall luci-app-passwall xray-core sing-box luci-app-upnp luci-app-advanced-reboot || true
           rm -rf package/feeds/luci/luci-app-passwall
           rm -rf package/feeds/packages/xray-core
@@ -86,18 +90,21 @@ jobs:
           # 🚀 拉取官方最新 PassWall
           retry git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/openwrt-passwall-packages
           retry git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/openwrt-passwall
-          
           retry ./scripts/feeds install -a -f
           
-          # 🚀 FIX 2：回歸 v3.38f 黃金抹除法 - 安全精準根除「掛載點」
+          # 🚀 FIX 2：回歸 v3.38f 黃金定點抹除法 (狙擊手精準定位)
           ./scripts/feeds uninstall luci-app-fstab || true
           rm -rf feeds/luci/applications/luci-app-fstab
           rm -rf package/feeds/luci/luci-app-fstab
           
-          # 採用安全 jq 存檔覆寫法，保護 JSON 結構絕對不崩潰
-          find feeds/luci/modules/luci-mod-system -type f -name "*.json" -print0 | while IFS= read -r -d '' f; do
-            jq -c 'del(."admin/system/mounts", ."admin/services/mounts")' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f" || true
-          done
+          # 僅針對 menu.d 下的 JSON 檔案進行安全修改，絕不引發選單崩潰
+          MENU_DIR="feeds/luci/modules/luci-mod-system/root/usr/share/luci/menu.d"
+          if [ -d "$MENU_DIR" ]; then
+            for f in $MENU_DIR/*.json; do
+              [ -f "$f" ] || continue
+              jq 'del(."admin/system/mounts", ."admin/services/mounts")' "$f" > "$f.tmp" && mv "$f.tmp" "$f" || true
+            done
+          fi
           
           find feeds package -type d -name ".git" -print0 | while IFS= read -r -d '' gitdir; do
             repo_path=$(dirname "$gitdir")
@@ -173,6 +180,7 @@ jobs:
           echo "build_key=build-v5.1.5-${{ hashFiles('toolchain.info', 'openwrt/.config') }}" >> $GITHUB_OUTPUT
 
       - name: Restore Cache
+        id: cache_restore
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -211,7 +219,7 @@ jobs:
 
       - name: Save Cache
         uses: actions/cache/save@v4
-        if: success() && !cancelled()
+        if: success() && !cancelled() && github.run_attempt == 1 && steps.cache_restore.outputs.cache-primary-key == ''
         with:
           path: |
             openwrt/dl
@@ -234,10 +242,10 @@ jobs:
           name: ImmWrt v5.1.5-LTS (The Golden Master)
           body: |
             ### 🔒 v5.1.5-LTS 黃金加固絕對封裝版
+            - **雙保險緩存禦盾**：結合 `concurrency` 並發鎖與 `cache-primary-key` 精準攔截，徹底根絕 GitHub Cache 衝突與報錯警告。
             - **黃金級掛載點根除**：回歸 v3.38f 經典 `jq` 邏輯，精準安全抹除菜單而不破壞 JSON 結構，並於 `.config` 底層阻斷 `block-mount`。
             - **雙重清潔邏輯**：確保 PassWall 官方源純淨度，徹底解決供應鏈回灌問題。
             - **硬體效能與安全性**：全量補齊 nft-offload 轉發加速與 ca-certificates 證書庫，完美適配 N100 + PVE。
-            - **全量中文化**：包含 DDNS, Argon, TTYD, SmartDNS 等所有核心插件的 `i18n-zh-cn` 語言包。
           files: |
             openwrt/bin/targets/x86/64/*combined*.img.gz
             openwrt/bin/targets/x86/64/sha256sums
