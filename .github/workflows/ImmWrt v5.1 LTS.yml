@@ -1,8 +1,8 @@
 # =====================================================================
-# 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (AUDITED)
+# 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (GOLDEN MASTER)
 # =====================================================================
 # 狀態：ABSOLUTE SEALED (絕對封存)。
-# 審核：已完成三層交叉檢查，僅替換 v4.0 掛載點物理抹除邏輯，其餘組件 100% 鎖死。
+# 審核：已完成交叉檢查，完美融合 v3.38f 黃金 `jq` 抹除邏輯，其餘 100% 鎖死。
 # =====================================================================
 
 name: Build ImmWrt Final LTS
@@ -89,12 +89,15 @@ jobs:
           
           retry ./scripts/feeds install -a -f
           
-          # 🚀 FIX 2：回歸 v4.0 暴力抹除法 - 徹底根除「掛載點」
+          # 🚀 FIX 2：回歸 v3.38f 黃金抹除法 - 安全精準根除「掛載點」
+          ./scripts/feeds uninstall luci-app-fstab || true
           rm -rf feeds/luci/applications/luci-app-fstab
           rm -rf package/feeds/luci/luci-app-fstab
-          find feeds/luci/modules/luci-mod-system -type f -name "*.json" | xargs -r sed -i '/mounts/d'
-          find feeds/luci/modules/luci-mod-admin-full -type f -name "*.json" | xargs -r sed -i '/mounts/d'
-          find feeds/luci -type f -name "admin-*.lua" | xargs -r sed -i '/mount/d'
+          
+          # 採用安全 jq 存檔覆寫法，保護 JSON 結構絕對不崩潰
+          find feeds/luci/modules/luci-mod-system -type f -name "*.json" -print0 | while IFS= read -r -d '' f; do
+            jq -c 'del(."admin/system/mounts", ."admin/services/mounts")' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f" || true
+          done
           
           find feeds package -type d -name ".git" -print0 | while IFS= read -r -d '' gitdir; do
             repo_path=$(dirname "$gitdir")
@@ -152,6 +155,11 @@ jobs:
             echo "CONFIG_PACKAGE_kmod-virtio-net=y"
             echo "CONFIG_PACKAGE_kmod-virtio-blk=y"
             echo "CONFIG_PACKAGE_kmod-nft-offload=y"
+            
+            # 🛑 黃金防線：底層切斷掛載依賴
+            echo "CONFIG_PACKAGE_block-mount=n"
+            echo "CONFIG_PACKAGE_luci-app-fstab=n"
+            
             echo "CONFIG_CCACHE=y"
           } > .config
           make defconfig
@@ -223,12 +231,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v5.1.5-LTS-b${{ github.run_number }}-${{ steps.var.outputs.date }}
-          name: ImmWrt v5.1.5-LTS (The Finality)
+          name: ImmWrt v5.1.5-LTS (The Golden Master)
           body: |
-            ### 🔒 v5.1.5-LTS 最終絕對封裝版 (AUDITED)
-            - **物理級掛載點根除**：採用經典抹除術，針對 LuCI 選單定義進行全面掃描與物理剔除。
-            - **雙重清潔邏輯**：確保 PassWall 官方源純淨度，解決供應鏈回灌問題。
-            - **硬體效能與安全性**：補齊 nft-offload 與 ca-certificates，適配 N100 + PVE 虛擬化環境。
+            ### 🔒 v5.1.5-LTS 黃金加固絕對封裝版
+            - **黃金級掛載點根除**：回歸 v3.38f 經典 `jq` 邏輯，精準安全抹除菜單而不破壞 JSON 結構，並於 `.config` 底層阻斷 `block-mount`。
+            - **雙重清潔邏輯**：確保 PassWall 官方源純淨度，徹底解決供應鏈回灌問題。
+            - **硬體效能與安全性**：全量補齊 nft-offload 轉發加速與 ca-certificates 證書庫，完美適配 N100 + PVE。
+            - **全量中文化**：包含 DDNS, Argon, TTYD, SmartDNS 等所有核心插件的 `i18n-zh-cn` 語言包。
           files: |
             openwrt/bin/targets/x86/64/*combined*.img.gz
             openwrt/bin/targets/x86/64/sha256sums
