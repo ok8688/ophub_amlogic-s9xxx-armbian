@@ -9,8 +9,8 @@ name: Build ImmWrt Final LTS
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '26 14 * * 2,6' # HKT 22:26 (每週二、六)
+  # schedule:
+  #   - cron: '26 14 * * 2,6' # HKT 22:26 (每週二、六)
 
 concurrency:
   group: immwrt-build
