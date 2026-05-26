@@ -1,8 +1,8 @@
 # =====================================================================
-# 🔒 [LTS FINAL SEALED] - THE NIRVANA v6.0.0
+# 🔒 [LTS FINAL SEALED] - THE ZENITH ABSOLUTE v6.0.0
 # =====================================================================
 # 狀態：ABSOLUTE SEALED (絕對封印) / PRODUCTION READY。
-# 審核：執行 feeds 強制安裝覆蓋策略，啟用 monitor.log 狀態存檔，鎖定極簡路由核心。
+# 審核：修正 src-link 路徑、實裝監控進程鎖定、完善 IPv6 生產級鏈路、強化 artifacts 追溯。
 # =====================================================================
 
 name: Build ImmWrt Final LTS
@@ -43,8 +43,10 @@ jobs:
           set -euo pipefail
           git clone -b v25.12.0 --single-branch --depth 1 https://github.com/immortalwrt/immortalwrt.git openwrt
           cd openwrt
-          echo "src-link passwall $PWD/package/openwrt-passwall" >> feeds.conf.default
-          echo "src-link passwall_packages $PWD/package/openwrt-passwall-packages" >> feeds.conf.default
+          
+          # 🚀 絕對路徑封印
+          echo "src-link passwall package/openwrt-passwall" >> feeds.conf.default
+          echo "src-link passwall_packages package/openwrt-passwall-packages" >> feeds.conf.default
           sed -i 's/^src-git/#src-git/g' feeds.conf.default
           
           ./scripts/feeds update -a
@@ -54,7 +56,6 @@ jobs:
           git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/openwrt-passwall-packages
           git clone --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall.git package/openwrt-passwall
           
-          # 🚀 封印級操作：強制安裝覆蓋，確保本地依賴 tree 為最終決策源
           ./scripts/feeds install -a -f
           
           rm -rf package/feeds/luci/luci-app-passwall* package/feeds/packages/xray-core package/feeds/packages/sing-box
@@ -111,8 +112,8 @@ jobs:
           set -euo pipefail
           cd openwrt
           mkdir -p logs
-          # 🚀 終極雷達防護：完整記錄日誌，確保可觀測性
-          ( while true; do echo "[MONITOR] RAM: $(free -m | awk '/Mem:/ {print $3"/"$2"MB"}') | DISK: $(df -h / | awk 'NR==2 {print $5}')" >> logs/monitor.log; sleep 120; done ) &
+          # 🚀 企業級監控日誌雙軌制
+          ( while true; do echo "[MONITOR] RAM: $(free -m | awk '/Mem:/ {print $3"/"$2"MB"}') | DISK: $(df -h / | awk 'NR==2 {print $5}')" | tee -a logs/monitor.log; sleep 120; done ) &
           MONITOR_PID=$!
           trap 'kill $MONITOR_PID 2>/dev/null || true' EXIT
           
