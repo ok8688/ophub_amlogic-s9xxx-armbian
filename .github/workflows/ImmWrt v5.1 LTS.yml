@@ -1,16 +1,16 @@
 # =====================================================================
-# 🔒 [LTS FINAL SEALED] - THE ABSOLUTE FINALITY v5.1.5 (TRUE MASTER)
+# 🔒 [LTS FINAL SEALED] - THE STABLE MASTER v6.0.0
 # =====================================================================
 # 狀態：ABSOLUTE SEALED (絕對封存)。
-# 審核：修正快取存檔邏輯，裝載帶駕駛艙雷達，引入極端容錯與超時防禦。
+# 審核：底層引擎正式躍升至 ImmortalWrt 25.12.0 正式版，全系統跨入 v6 世代。
 # =====================================================================
 
 name: Build ImmWrt Final LTS
 
 on:
   workflow_dispatch:
-#  schedule:
-#    - cron: '26 14 * * 0,2,4,6' # HKT 22:26 (每週日、二、四、六)
+  schedule:
+    - cron: '26 14 * * 0,2,4,6' # HKT 22:26 (每週日、二、四、六)
 
 concurrency:
   group: immwrt-build
@@ -85,7 +85,8 @@ jobs:
         run: |
           set -euo pipefail
           source /tmp/sre_utils.sh
-          retry git clone -b v25.12.0-rc2 --single-branch --depth 1 https://github.com/immortalwrt/immortalwrt.git openwrt
+          # 🚀 升級：精準對接 25.12.0 正式穩定版源碼
+          retry git clone -b v25.12.0 --single-branch --depth 1 https://github.com/immortalwrt/immortalwrt.git openwrt
           cd openwrt
           retry ./scripts/feeds update -a
           
@@ -189,7 +190,7 @@ jobs:
         id: var
         run: |
           echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "dl_key=dl-v5.1.5-${{ hashFiles('openwrt/feeds.conf.default', 'openwrt/feeds.snapshot.txt') }}" >> $GITHUB_OUTPUT
+          echo "dl_key=dl-v6.0.0-${{ hashFiles('openwrt/feeds.conf.default', 'openwrt/feeds.snapshot.txt') }}" >> $GITHUB_OUTPUT
 
       - name: Restore Cache
         id: cache_restore
@@ -199,7 +200,7 @@ jobs:
             openwrt/dl
           key: ${{ steps.var.outputs.dl_key }}
           restore-keys: |
-            dl-v5.1.5-
+            dl-v6.0.0-
 
       - name: Build Firmware
         run: |
@@ -266,10 +267,11 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v5.1.5-LTS-b${{ github.run_number }}-${{ steps.var.outputs.date }}
-          name: ImmWrt v5.1.5-LTS (The True Master)
+          tag_name: v6.0.0-LTS-b${{ github.run_number }}-${{ steps.var.outputs.date }}
+          name: ImmWrt v6.0.0-LTS (The Stable Master)
           body: |
-            ### 🔒 v5.1.5-LTS 究極穩健大成版
+            ### 👑 v6.0.0-LTS 正式跨入純粹穩定世代
+            - **核心直升**：底層源碼正式由 RC 測試版無縫切換至 **ImmortalWrt 25.12.0 官方穩定版**。
             - **防爆盤矩陣**：引入 Android/Docker 核爆清理，徹底剔除 `.ccache` 負擔，確保 100% 編譯空間。
             - **SRE 雷達監控**：裝載 Subshell 背景心跳與硬體探針，即時觀測 RAM/Disk 水位，防禦 GitHub 靜默超時。
             - **極端容錯升級**：擴增超時防禦至 300 分鐘，並引入 `|| true` 非致命報錯豁免機制，保障 100% 產出率。
