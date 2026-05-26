@@ -301,7 +301,7 @@ jobs:
             echo "📡 BUILD MONITOR START"
 
             while true; do
-              echo "[MONITOR] $(date '+%H:%M:%S') | RAM: $(free -m | awk '/Mem:/ {print $3\"/\"$2\"MB\"}') | DISK: $(df -h / | awk 'NR==2 {print $5}')"
+              echo "[MONITOR] $(date '+%H:%M:%S') | RAM: $(free -m | awk '/Mem:/ {print $3"/"$2"MB"}') | DISK: $(df -h / | awk 'NR==2 {print $5}')"
               sleep 120 || true
             done
           ) &
